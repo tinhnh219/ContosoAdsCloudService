@@ -53,15 +53,25 @@
       <RoleName>ContosoAdsWorker</RoleName>
       <UpdateDiagnosticsConnectionStringOnPublish>True</UpdateDiagnosticsConnectionStringOnPublish>
     </ProjectReference>
+    <ProjectReference Include="..\TimeWorker\TimeWorker.csproj">
+      <Name>TimeWorker</Name>
+      <Project>{85ba73aa-9095-4819-91c1-ed86c9fee518}</Project>
+      <Private>True</Private>
+      <RoleType>Worker</RoleType>
+      <RoleName>TimeWorker</RoleName>
+      <UpdateDiagnosticsConnectionStringOnPublish>True</UpdateDiagnosticsConnectionStringOnPublish>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <Folder Include="ContosoAdsWebContent\" />
     <Folder Include="ContosoAdsWorkerContent\" />
     <Folder Include="Profiles" />
+    <Folder Include="TimeWorkerContent\" />
   </ItemGroup>
   <ItemGroup>
     <DiagnosticsConfiguration Include="ContosoAdsWebContent\diagnostics.wadcfgx" />
     <DiagnosticsConfiguration Include="ContosoAdsWorkerContent\diagnostics.wadcfgx" />
+    <DiagnosticsConfiguration Include="TimeWorkerContent\diagnostics.wadcfgx" />
   </ItemGroup>
   <ItemGroup>
     <PublishProfile Include="Profiles\prc391Production.azurePubxml" />

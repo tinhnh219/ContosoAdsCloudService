@@ -22,7 +22,6 @@ namespace ContosoAdsWorker
     public class WorkerRole : RoleEntryPoint
     {
         private CloudQueue imagesQueue;
-        private CloudQueue timestampQueue;
         private CloudBlobContainer imagesBlobContainer;
         private ContosoAdsContext db;
 
@@ -30,7 +29,6 @@ namespace ContosoAdsWorker
         {
             Trace.TraceInformation("ContosoAdsWorker entry point called");
             CloudQueueMessage msg = null;
-            CloudQueueMessage msg2 = null;
 
             // To make the worker role more scalable, implement multi-threaded and 
             // asynchronous code. See:
@@ -46,12 +44,10 @@ namespace ContosoAdsWorker
                     // multiple queue messages at a time. See:
                     // http://azure.microsoft.com/en-us/documentation/articles/cloud-services-dotnet-multi-tier-app-storage-5-worker-role-b/#addcode
                     msg = this.imagesQueue.GetMessage();
-                    msg2 = this.timestampQueue.GetMessage();
-                    if (msg != null && msg2 != null)
+                    if (msg != null )
                     {
                         ProcessQueueMessage(msg);
 
-                        ProcessTimestampQueue(msg2);
                     }
                     else
                     {
@@ -64,13 +60,6 @@ namespace ContosoAdsWorker
                     {
                         this.imagesQueue.DeleteMessage(msg);
                         Trace.TraceError("Deleting poison queue item: '{0}'", msg.AsString);
-                    }
-                    Trace.TraceError("Exception in ContosoAdsWorker: '{0}'", e.Message);
-                    System.Threading.Thread.Sleep(5000);
-                    if (msg2 != null && msg2.DequeueCount > 5)
-                    {
-                        this.timestampQueue.DeleteMessage(msg);
-                        Trace.TraceError("Deleting poison queue item: '{0}'", msg2.AsString);
                     }
                     Trace.TraceError("Exception in ContosoAdsWorker: '{0}'", e.Message);
                     System.Threading.Thread.Sleep(5000);
@@ -111,59 +100,6 @@ namespace ContosoAdsWorker
 
             // Remove message from queue.
             this.imagesQueue.DeleteMessage(msg);
-        }
-
-        private void ProcessTimestampQueue(CloudQueueMessage msg)
-        {
-            Trace.TraceInformation("Processing queue message {0}", msg);
-
-            var adId = int.Parse(msg.AsString);
-            Ad ad = db.Ads.Find(adId);
-            if (ad == null)
-            {
-                throw new Exception(String.Format("AdId {0} not found", adId.ToString()));
-            }
-            Uri blobUri = new Uri(ad.ImageURL);
-            string blobName = blobUri.Segments[blobUri.Segments.Length - 1];
-            CloudBlockBlob inputBlob = this.imagesBlobContainer.GetBlockBlobReference(blobName);
-            string newName = Path.GetFileNameWithoutExtension(inputBlob.Name) + "new.jpg";
-            CloudBlockBlob outputBlob = this.imagesBlobContainer.GetBlockBlobReference(newName);
-
-            using (Stream input = inputBlob.OpenRead())
-            using (Stream output = outputBlob.OpenWrite())
-            {
-                AddTimestampToImage(input, output);
-                outputBlob.Properties.ContentType = "image/jpeg";
-            }
-            Trace.TraceInformation("Generated timestamp in blob {0}", newName);
-
-            ad.ImageURL = outputBlob.Uri.ToString();
-            db.SaveChanges();
-            Trace.TraceInformation("Updated timestamp URL in database: {0}", ad.ImageURL);
-
-            this.timestampQueue.DeleteMessage(msg);
-        }
-
-        public void AddTimestampToImage(Stream input, Stream output)
-        {
-            var image = new Bitmap(input);
-            try
-            {
-                Bitmap newImage = new Bitmap(image);
-                using (Graphics g = Graphics.FromImage(newImage))
-                {
-                    Font font = new Font("Arial", 10);
-                    g.DrawString(DateTime.Now.ToString(), font, Brushes.Blue, new PointF(0f, 0f));
-                }
-                newImage.Save(output, ImageFormat.Jpeg);
-            }
-            finally
-            {
-                if (image != null)
-                {
-                    image.Dispose();
-                }
-            }
         }
 
         public void ConvertImageToThumbnailJPG(Stream input, Stream output)
@@ -242,8 +178,6 @@ namespace ContosoAdsWorker
             imagesQueue = queueClient.GetQueueReference("images");
             imagesQueue.CreateIfNotExists();
 
-            timestampQueue = queueClient.GetQueueReference("timestamp");
-            timestampQueue.CreateIfNotExists();
 
             Trace.TraceInformation("Storage initialized");
             return base.OnStart();
